@@ -16,4 +16,4 @@ stopMusic | nothing | stop the loaded song
 \* : See the note
 
 Note : If you don't start the path by a /, the begin if the path will be /sdcard/Algoid/raw.
-Exemple : `audio\.loadMusic\("example.mp3"\)` will try to load /sdcard/Algoid/raw/example\.mp3 \.
+Exemple : `audio.loadMusic("example.mp3")` will try to load /sdcard/Algoid/raw/example.mp3 .
