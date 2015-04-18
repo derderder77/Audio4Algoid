@@ -7,9 +7,12 @@ import android.media.SoundPool;
 import java.io.IOException;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 
 import fr.cyann.al.ast.Block;
 import fr.cyann.al.ast.declaration.ObjectDeclaration;
+import fr.cyann.al.data.FunctionInstance;
 import fr.cyann.al.factory.FactoryUtils;
 import fr.cyann.al.factory.TypeNameFunctionMap;
 import fr.cyann.al.visitor.RuntimeContext;
@@ -23,10 +26,9 @@ import fr.cyann.jasi.builder.ASTBuilder;
 public class PluginImplementation implements Plugin
 {
 	
-	static final String VERSION = "1" ;
+	static final String VERSION = "2" ;
 	static final String DEFAULT_AUDIO_PATH = "/sdcard/Algoid/raw/" ;
-	MediaPlayer mediaPlayer = null ;
-	boolean loaded = false ;
+	Map<Float,MediaPlayer> playerMap = new HashMap<Float,MediaPlayer>() ;
 	
 	@Override
 	public void addFrameworkObjects(ApplicationContext ac, ASTBuilder builder)
@@ -65,6 +67,7 @@ public class PluginImplementation implements Plugin
 					String path ;
 					if ( param.charAt(0) == '/' ) {
 						path = param ;
+						
 					}
 					else {
 						path = DEFAULT_AUDIO_PATH+param ;
@@ -73,7 +76,6 @@ public class PluginImplementation implements Plugin
 					{
 						mp.setDataSource(path) ;
 						mp.prepare() ;
-						loaded = true ;
 					}
 					catch (SecurityException e)
 					{}
@@ -85,12 +87,12 @@ public class PluginImplementation implements Plugin
 					{}
 					catch (IOException e)
 					{
-						Logger.write(Logger.Severity.ERROR,"File "+path+" do not exist or is not readable") ;
+						Logger.write(Logger.Severity.ERROR,"File "+path+" do not exist or is not readable or is not an audio file") ;
 					}
-					mediaPlayer = mp ;					
-				}
-
-			
+					float key = playerMap.size() + 1;
+					playerMap.put(key,mp) ;
+					p2.returnValue(key) ;
+					}			
 		},"path") ;
 		
 		FactoryUtils.addMethod(audio, "playMusic", new FactoryUtils.Behaviour() {
@@ -98,42 +100,82 @@ public class PluginImplementation implements Plugin
 				@Override
 				public void visite(Block<RuntimeContext> p1, RuntimeContext p2)
 				{
-					if ( loaded ) {
+					float key = FactoryUtils.getParam(p1,0).getNumber() ;
+					MediaPlayer mediaPlayer = playerMap.get(key) ;
+					if ( mediaPlayer != null ) {
+						try {
 					mediaPlayer.start() ;
+							}
+							catch ( IllegalStateException e ) {
+								Logger.write(Logger.Severity.ERROR,"The song with the id "+key+" was stopped, it is not usable now") ;
+							}
 					}
 					else {
-						Logger.write(Logger.Severity.ERROR,"You must load a music before play") ;
+						Logger.write(Logger.Severity.ERROR,"The id "+key+" doesn't exist") ;
 					}
 				}
 
 			
-		}) ;
+		},"songId") ;
 		FactoryUtils.addMethod(audio, "stopMusic", new FactoryUtils.Behaviour() {
 
 				@Override
 				public void visite(Block<RuntimeContext> p1, RuntimeContext p2)
 				{
+					float key = FactoryUtils.getParam(p1,0).getNumber() ;
+					MediaPlayer mediaPlayer = playerMap.get(key) ;
+					if ( mediaPlayer != null ) {
 					if ( mediaPlayer.isPlaying() ) {
 						mediaPlayer.stop() ;
+						mediaPlayer.release() ;
+					}
+					} else {
+						Logger.write(Logger.Severity.ERROR,"The id "+key+" doesn't exist") ;
 					}
 				}
 
 			
-		}) ;
+		},"songId") ;
 		FactoryUtils.addMethod(audio, "pauseMusic", new FactoryUtils.Behaviour() {
 
 				@Override
 				public void visite(Block<RuntimeContext> p1, RuntimeContext p2)
 				{
+					float key = FactoryUtils.getParam(p1,0).getNumber() ;
+					MediaPlayer mediaPlayer = playerMap.get(key) ;
+					if ( mediaPlayer != null ) {
 					if ( mediaPlayer.isPlaying() ) {
 						mediaPlayer.pause() ;
 					}
+					} else {
+						Logger.write(Logger.Severity.ERROR,"The id "+key+" doesn't exist") ;
+					}
 				}
-
 			
-		}) ;
-		
-	}	
+		},"songId") ;
+		String[] args = {"songId","msec"} ;
+		FactoryUtils.addMethod(audio, "seekToInMusic", new FactoryUtils.Behaviour() {
+
+				@Override
+				public void visite(Block<RuntimeContext> p1, RuntimeContext p2)
+				{
+					float key = FactoryUtils.getParam(p1,0).getNumber() ;
+					int time = (int) FactoryUtils.getParam(p1,0).getNumber() ;
+					MediaPlayer mediaPlayer = playerMap.get(key) ;
+					if ( mediaPlayer != null ) {
+						try {
+						mediaPlayer.seekTo(time)  ;
+						} catch ( IllegalStateException e ) {
+						}
+					}	
+					 else {
+						Logger.write(Logger.Severity.ERROR,"The id "+key+" doesn't exist") ;
+					}
+				}	
+		},args) ;
+	
+	}
+	
 	
 	@Override
 	public void initialize(Context p1)
